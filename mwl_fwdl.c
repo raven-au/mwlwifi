@@ -40,7 +40,6 @@
 */
 
 static void mwl_fwdl_trig_pcicmd(struct mwl_priv *priv);
-static void mwl_fwdl_trig_pcicmd_bootcode(struct mwl_priv *priv);
 
 /* PUBLIC FUNCTION DEFINITION
 */
@@ -99,9 +98,12 @@ int mwl_fwdl_download_firmware(struct ieee80211_hw *hw)
 		*/
 		memcpy((char *)&priv->pcmd_buf[0], (fw->data + size_fw_downloaded), len);
 
-		/* this function writes pdata to c10, then write 2 to c18
+		/* write pdata to c10, then write 2 to c18
 		*/
-		mwl_fwdl_trig_pcicmd_bootcode(priv);
+		writel(priv->pphys_cmd_buf, priv->iobase1 + MACREG_REG_GEN_PTR);
+		writel(0x00, priv->iobase1 + MACREG_REG_INT_CODE);
+		writel(MACREG_H2ARIC_BIT_DOOR_BELL,
+		       priv->iobase1 + MACREG_REG_H2A_INTERRUPT_EVENTS);
 
 		curr_iteration = FW_MAX_NUM_CHECKS; /* this is arbitrary per your platform; we use 0xffff */
 
@@ -110,6 +112,11 @@ int mwl_fwdl_download_firmware(struct ieee80211_hw *hw)
 		 * the write of event 2 to C1C == 2 is ~1300 nSec. Hence the checkings on host
 		 * has to consider how efficient your code can be to meet this timing, or you
 		 * can alternatively tweak this routines to fit your platform
+		 *
+		 * NOTE: not only does the register change take ~1300 nSec
+		 * but if you take too long to get to the check below, such
+		 * as issuing a printk() for logging, you can miss the event
+		 * altogether.
 		 */
 		do {
 
@@ -187,22 +194,6 @@ err_download:
 */
 
 static void mwl_fwdl_trig_pcicmd(struct mwl_priv *priv)
-{
-	WLDBG_ENTER(DBG_LEVEL_1);
-
-	BUG_ON(!priv);
-
-	writel(priv->pphys_cmd_buf, priv->iobase1 + MACREG_REG_GEN_PTR);
-
-	writel(0x00, priv->iobase1 + MACREG_REG_INT_CODE);
-
-	writel(MACREG_H2ARIC_BIT_DOOR_BELL,
-	       priv->iobase1 + MACREG_REG_H2A_INTERRUPT_EVENTS);
-
-	WLDBG_EXIT(DBG_LEVEL_1);
-}
-
-static void mwl_fwdl_trig_pcicmd_bootcode(struct mwl_priv *priv)
 {
 	WLDBG_ENTER(DBG_LEVEL_1);
 
